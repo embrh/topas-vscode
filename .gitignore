@@ -1,2 +1,5 @@
 # compoiled VSCode extension packages
 *.vsix
+
+node_modules/
+out/

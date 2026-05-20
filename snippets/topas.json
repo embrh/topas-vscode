@@ -1,0 +1,215 @@
+{
+  "TOPAS Section Header": {
+    "prefix": ["section", "##"],
+    "body": [
+      "",
+      "# ${1:=================================================================}",
+      "#                        ${2:SECTION NAME}",
+      "# ${1:=================================================================}",
+      ""
+    ],
+    "description": "Insert a TOPAS section header"
+  },
+  "TOPAS Subsection Header": {
+    "prefix": ["subsection", "#-"],
+    "body": [
+      "",
+      "# ${1:--------------------------------------------}",
+      "#               ${2:Subsection Name}",
+      "# ${1:--------------------------------------------}",
+      ""
+    ],
+    "description": "Insert a TOPAS subsection header"
+  },
+  "World Geometry": {
+    "prefix": ["world", "geworld"],
+    "body": [
+      "s:Ge/World/Material  = \"${1:Vacuum}\"",
+      "d:Ge/World/HLX       = ${2:2.0} m",
+      "d:Ge/World/HLY       = ${2:2.0} m",
+      "d:Ge/World/HLZ       = ${2:2.0} m",
+      "b:Ge/World/Invisible = \"True\""
+    ],
+    "description": "World geometry block"
+  },
+  "Box Geometry": {
+    "prefix": ["box", "gebox", "tsbox"],
+    "body": [
+      "s:Ge/${1:MyBox}/Type     = \"TsBox\"",
+      "s:Ge/${1:MyBox}/Parent   = \"${2:World}\"",
+      "s:Ge/${1:MyBox}/Material = \"${3:G4_WATER}\"",
+      "d:Ge/${1:MyBox}/HLX      = ${4:10.0} cm",
+      "d:Ge/${1:MyBox}/HLY      = ${4:10.0} cm",
+      "d:Ge/${1:MyBox}/HLZ      = ${5:10.0} cm",
+      "d:Ge/${1:MyBox}/TransX   = ${6:0.} cm",
+      "d:Ge/${1:MyBox}/TransY   = ${6:0.} cm",
+      "d:Ge/${1:MyBox}/TransZ   = ${7:0.} cm",
+      "s:Ge/${1:MyBox}/Color    = \"${8:blue}\""
+    ],
+    "description": "TsBox geometry block"
+  },
+  "Sphere Geometry": {
+    "prefix": ["sphere", "gesphere", "tssphere"],
+    "body": [
+      "s:Ge/${1:MySphere}/Type     = \"TsSphere\"",
+      "s:Ge/${1:MySphere}/Parent   = \"${2:World}\"",
+      "s:Ge/${1:MySphere}/Material = \"${3:G4_WATER}\"",
+      "d:Ge/${1:MySphere}/RMin     = ${4:0.} cm",
+      "d:Ge/${1:MySphere}/RMax     = ${5:5.0} cm",
+      "d:Ge/${1:MySphere}/SPhi     = 0. deg",
+      "d:Ge/${1:MySphere}/DPhi     = 360. deg",
+      "d:Ge/${1:MySphere}/STheta   = 0. deg",
+      "d:Ge/${1:MySphere}/DTheta   = 180. deg",
+      "s:Ge/${1:MySphere}/Color    = \"${6:green}\""
+    ],
+    "description": "TsSphere geometry block"
+  },
+  "Cylinder Geometry": {
+    "prefix": ["cylinder", "gecylinder", "tscylinder"],
+    "body": [
+      "s:Ge/${1:MyCylinder}/Type     = \"TsCylinder\"",
+      "s:Ge/${1:MyCylinder}/Parent   = \"${2:World}\"",
+      "s:Ge/${1:MyCylinder}/Material = \"${3:G4_WATER}\"",
+      "d:Ge/${1:MyCylinder}/RMin     = ${4:0.} cm",
+      "d:Ge/${1:MyCylinder}/RMax     = ${5:5.0} cm",
+      "d:Ge/${1:MyCylinder}/HL       = ${6:10.0} cm",
+      "d:Ge/${1:MyCylinder}/SPhi     = 0. deg",
+      "d:Ge/${1:MyCylinder}/DPhi     = 360. deg",
+      "s:Ge/${1:MyCylinder}/Color    = \"${7:red}\""
+    ],
+    "description": "TsCylinder geometry block"
+  },
+  "Group Component": {
+    "prefix": ["group", "gegroup"],
+    "body": [
+      "s:Ge/${1:MyGroup}/Type    = \"Group\"",
+      "s:Ge/${1:MyGroup}/Parent  = \"${2:World}\"",
+      "d:Ge/${1:MyGroup}/TransX  = ${3:0.} m",
+      "d:Ge/${1:MyGroup}/TransY  = ${4:0.} m",
+      "d:Ge/${1:MyGroup}/TransZ  = ${5:0.} m",
+      "d:Ge/${1:MyGroup}/RotX    = ${6:0.} deg",
+      "d:Ge/${1:MyGroup}/RotY    = ${7:0.} deg",
+      "d:Ge/${1:MyGroup}/RotZ    = ${8:0.} deg"
+    ],
+    "description": "Group geometry component"
+  },
+  "Beam Source": {
+    "prefix": ["beam", "sobeam"],
+    "body": [
+      "s:So/${1:MyBeam}/Type                     = \"Beam\"",
+      "s:So/${1:MyBeam}/Component                = \"${2:BeamPosition}\"",
+      "s:So/${1:MyBeam}/BeamParticle             = \"${3:proton}\"",
+      "d:So/${1:MyBeam}/BeamEnergy               = ${4:169.23} MeV",
+      "u:So/${1:MyBeam}/BeamEnergySpread         = ${5:0.757}",
+      "s:So/${1:MyBeam}/BeamPositionDistribution = \"${6:Gaussian}\"",
+      "s:So/${1:MyBeam}/BeamPositionCutoffShape  = \"Ellipse\"",
+      "d:So/${1:MyBeam}/BeamPositionCutoffX      = ${7:10.} cm",
+      "d:So/${1:MyBeam}/BeamPositionCutoffY      = ${7:10.} cm",
+      "d:So/${1:MyBeam}/BeamPositionSpreadX      = ${8:0.65} cm",
+      "d:So/${1:MyBeam}/BeamPositionSpreadY      = ${8:0.65} cm",
+      "s:So/${1:MyBeam}/BeamAngularDistribution  = \"Gaussian\"",
+      "d:So/${1:MyBeam}/BeamAngularCutoffX       = 90. deg",
+      "d:So/${1:MyBeam}/BeamAngularCutoffY       = 90. deg",
+      "d:So/${1:MyBeam}/BeamAngularSpreadX       = ${9:0.0032} rad",
+      "d:So/${1:MyBeam}/BeamAngularSpreadY       = ${9:0.0032} rad",
+      "i:So/${1:MyBeam}/NumberOfHistoriesInRun   = ${10:1000}"
+    ],
+    "description": "Full Beam source block"
+  },
+  "Isotropic Source": {
+    "prefix": ["isotropic", "soisotropic"],
+    "body": [
+      "s:So/${1:MySource}/Type                     = \"Isotropic\"",
+      "s:So/${1:MySource}/Component                = \"${2:MyVolume}\"",
+      "s:So/${1:MySource}/BeamParticle             = \"${3:gamma}\"",
+      "d:So/${1:MySource}/BeamEnergy               = ${4:1.0} MeV",
+      "i:So/${1:MySource}/NumberOfHistoriesInRun   = ${5:1000}"
+    ],
+    "description": "Isotropic source block"
+  },
+  "Dose Scorer": {
+    "prefix": ["dose", "scdose", "scorer"],
+    "body": [
+      "s:Sc/${1:MyDose}/Quantity                  = \"DoseToMedium\"",
+      "s:Sc/${1:MyDose}/Component                 = \"${2:MyPhantom}\"",
+      "s:Sc/${1:MyDose}/OutputFile                = \"${3:DoseOutput}\"",
+      "s:Sc/${1:MyDose}/OutputType                = \"${4|csv,binary,ASCII,root|}\"",
+      "s:Sc/${1:MyDose}/IfOutputFileAlreadyExists = \"Overwrite\"",
+      "b:Sc/${1:MyDose}/OutputToConsole           = \"${5|True,False|}\"",
+      "sv:Sc/${1:MyDose}/Report                   = 2 \"Sum\" \"Mean\""
+    ],
+    "description": "Dose scorer block"
+  },
+  "Phase Space Scorer": {
+    "prefix": ["phasespace", "scphsp", "phsp"],
+    "body": [
+      "s:Sc/${1:MyPhSp}/Quantity                  = \"PhaseSpace\"",
+      "s:Sc/${1:MyPhSp}/Surface                   = \"${2:MyBox}/ZPlusSurface\"",
+      "s:Sc/${1:MyPhSp}/OutputFile                = \"${3:PhaseSpaceOutput}\"",
+      "s:Sc/${1:MyPhSp}/OutputType                = \"ASCII\"",
+      "s:Sc/${1:MyPhSp}/IfOutputFileAlreadyExists = \"Overwrite\"",
+      "i:Sc/${1:MyPhSp}/OutputBufferSize          = 1000"
+    ],
+    "description": "Phase space scorer block"
+  },
+  "Fluence Scorer": {
+    "prefix": ["fluence", "scfluence"],
+    "body": [
+      "s:Sc/${1:MyFluence}/Quantity                  = \"Fluence\"",
+      "s:Sc/${1:MyFluence}/Component                 = \"${2:MyVolume}\"",
+      "s:Sc/${1:MyFluence}/OutputFile                = \"${3:FluenceOutput}\"",
+      "s:Sc/${1:MyFluence}/OutputType                = \"csv\"",
+      "s:Sc/${1:MyFluence}/IfOutputFileAlreadyExists = \"Overwrite\"",
+      "b:Sc/${1:MyFluence}/OutputToConsole           = \"True\"",
+      "sv:Sc/${1:MyFluence}/Report                   = 1 \"Sum\""
+    ],
+    "description": "Fluence scorer block"
+  },
+  "Physics List": {
+    "prefix": ["physics", "phlist"],
+    "body": [
+      "sv:Ph/Default/Modules = ${1:6} \"${2|g4em-standard_opt0,g4em-standard_opt4,g4em-livermore,g4em-penelope|}\" \"g4h-phy_QGSP_BIC_HP\" \"g4decay\" \"g4ion-binarycascade\" \"g4h-elastic_HP\" \"g4stopping\""
+    ],
+    "description": "Physics modules list"
+  },
+  "Simulation Control": {
+    "prefix": ["ts", "simcontrol"],
+    "body": [
+      "i:Ts/Seed                     = ${1:42}",
+      "i:Ts/NumberOfThreads          = ${2:4}",
+      "i:Ts/ShowHistoryCountAtInterval = ${3:1000}",
+      "b:Ts/ShowCPUTime              = \"True\""
+    ],
+    "description": "Simulation control (Ts/) block"
+  },
+  "OpenGL Graphics": {
+    "prefix": ["graphics", "opengl", "gr"],
+    "body": [
+      "s:Gr/View/Type             = \"OpenGL\"",
+      "i:Gr/View/WindowSizeX      = ${1:900}",
+      "i:Gr/View/WindowSizeY      = ${1:900}",
+      "d:Gr/View/Theta            = ${2:55} deg",
+      "d:Gr/View/Phi              = ${3:20} deg",
+      "b:Gr/View/IncludeAxes      = \"True\"",
+      "d:Gr/View/AxesSize         = ${4:1.} m",
+      "b:Gr/View/HiddenLineRemovalForTrajectories = \"True\"",
+      "b:Ts/PauseBeforeQuit       = \"True\""
+    ],
+    "description": "OpenGL graphics block"
+  },
+  "Custom Material": {
+    "prefix": ["material", "madef"],
+    "body": [
+      "sv:Ma/${1:MyMaterial}/Components = ${2:2} \"${3:Hydrogen}\" \"${4:Oxygen}\"",
+      "uv:Ma/${1:MyMaterial}/Fractions  = ${2:2} ${5:0.1119} ${6:0.8881}",
+      "d:Ma/${1:MyMaterial}/Density     = ${7:1.0} g/cm3",
+      "s:Ma/${1:MyMaterial}/DefaultColor = \"${8:blue}\""
+    ],
+    "description": "Custom material definition"
+  },
+  "includeFile": {
+    "prefix": ["include", "includefile"],
+    "body": ["includeFile = ${1:file.txt}"],
+    "description": "Include another TOPAS parameter file"
+  }
+}

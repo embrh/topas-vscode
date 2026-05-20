@@ -1,35 +1,172 @@
 {
-    "name": "topas",
-    "displayName": "Topas",
-    "publisher": "SamuelPeet",
-    "author": {
-		"name": "Samuel Peet"
-	},
-    "description": "Syntax highlighting and VSCode integration for Topas monte carlo parameter files",
-    "version": "1.0.0",
-    "engines": {
-        "vscode": "^1.30.0"
-    },
-    "icon": "icon.png",
-    "repository": {
-		"type": "git",
-		"url": "https://github.com/samuelpeet/topas-vscode.git"
-	},
-    "categories": [
-        "Programming Languages"
+  "name": "topas",
+  "displayName": "TOPAS",
+  "publisher": "SamuelPeet",
+  "author": "Samuel Peet",
+  "description": "Full language support for TOPAS Monte Carlo parameter files: syntax highlighting, formatting, IntelliSense, hover docs, folding, outline, and run integration.",
+  "version": "2.0.0",
+  "engines": {
+    "vscode": "^1.121.0"
+  },
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samuelpeet/topas-vscode.git"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:topas"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "topas",
+        "aliases": [
+          "TOPAS",
+          "Topas",
+          "topas"
+        ],
+        "extensions": [
+          ".txt"
+        ],
+        "configuration": "./language-configuration.json",
+        "firstLine": "^(#.*TOPAS|[bidus]v?c?:(Ge|So|Sc|Ph|Ts|Gr|Ma|Vr|Tf|El|Is|Rt)/)"
+      }
     ],
-    "contributes": {
-        "languages": [{
-            "id": "topas",
-            "aliases": ["Topas", "topas"],
-            "extensions": [".txt"],
-            "configuration": "./language-configuration.json"
-        }],
-        "grammars": [{
-            "language": "topas",
-            "scopeName": "text.topas",
-            "path": "./syntaxes/topas.tmLanguage.json"
-        }]
+    "grammars": [
+      {
+        "language": "topas",
+        "scopeName": "text.topas",
+        "path": "./syntaxes/topas.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "topas.run",
+        "title": "TOPAS: Run Simulation",
+        "icon": "$(play)"
+      },
+      {
+        "command": "topas.runWithGraphics",
+        "title": "TOPAS: Run with Visualization",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "topas.insertSection",
+        "title": "TOPAS: Insert Section Header"
+      },
+      {
+        "command": "topas.insertSubsection",
+        "title": "TOPAS: Insert Subsection Header"
+      },
+      {
+        "command": "topas.insertGeometryBlock",
+        "title": "TOPAS: Insert Geometry Block"
+      },
+      {
+        "command": "topas.insertScoringBlock",
+        "title": "TOPAS: Insert Scoring Block"
+      },
+      {
+        "command": "topas.insertSourceBlock",
+        "title": "TOPAS: Insert Source Block"
+      },
+      {
+        "command": "topas.insertPhysicsBlock",
+        "title": "TOPAS: Insert Physics Block"
+      },
+      {
+        "command": "topas.formatDocument",
+        "title": "TOPAS: Format Document"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "topas.run",
+          "when": "resourceLangId == topas",
+          "group": "navigation@1"
+        },
+        {
+          "command": "topas.runWithGraphics",
+          "when": "resourceLangId == topas",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "topas.run",
+          "when": "resourceLangId == topas",
+          "group": "topas@1"
+        },
+        {
+          "command": "topas.insertSection",
+          "when": "resourceLangId == topas",
+          "group": "topas@2"
+        },
+        {
+          "command": "topas.insertGeometryBlock",
+          "when": "resourceLangId == topas",
+          "group": "topas@3"
+        },
+        {
+          "command": "topas.insertScoringBlock",
+          "when": "resourceLangId == topas",
+          "group": "topas@4"
+        }
+      ]
     },
-    "homepage": "https://github.com/samuelpeet/topas-vscode/blob/master/README.md"
+    "configuration": {
+      "title": "TOPAS",
+      "properties": {
+        "topas.executablePath": {
+          "type": "string",
+          "default": "topas",
+          "description": "Path to the TOPAS executable (defaults to 'topas' on PATH)."
+        },
+        "topas.autoDetect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically detect TOPAS files by content (Ge/, So/, Sc/ patterns)."
+        },
+        "topas.formatOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Format TOPAS files automatically on save."
+        },
+        "topas.alignEquals": {
+          "type": "boolean",
+          "default": true,
+          "description": "Align '=' signs when formatting."
+        }
+      }
+    },
+    "snippets": [
+      {
+        "language": "topas",
+        "path": "./snippets/topas.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "@types/vscode": "^1.120.0",
+    "typescript": "^5.9.3"
+  },
+  "keywords": [],
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/samuelpeet/topas-vscode/issues"
+  },
+  "homepage": "https://github.com/samuelpeet/topas-vscode#readme"
 }
