@@ -4,6 +4,7 @@ import {
   UNIT_GROUPS, ALL_UNITS,
   PHYSICS_MODULES, PARTICLES, SCORER_QUANTITIES,
   TOPAS_COLORS, DRAWING_STYLES, GEOMETRY_TYPES, COMMON_MATERIALS,
+  NS_DEFAULT_COMPONENTS,
   TopasParam,
 } from './topasData';
 
@@ -11,39 +12,49 @@ import {
 //  Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Parse a line like  d:Ge/MyBox/HLX = 10 cm  into its components. */
 function parseLine(line: string) {
-  const m = line.match(/^([bidus]v?c?):((?:[A-Za-z]+\/[\w/]+\/)([\w]+))\s*=\s*(.*)$/i);
+  const m = line.match(/^\s*([bidus]v?c?):((?:[A-Za-z]+\/[\w/]+\/)([\w]+))\s*=\s*(.*)$/i);
   if (!m) return null;
   return { typePrefix: m[1], fullPath: m[2], lastName: m[3], value: m[4].trim() };
 }
 
-/** Normalise a path like  Ge/MyBox/HLX  →  Ge/{Name}/HLX */
+/** Ge/MyBox/HLX  →  Ge/{Name}/HLX */
 function normalisePath(path: string): string {
   const parts = path.split('/');
-  if (parts.length >= 3) {
-    parts[1] = '{Name}';
-    return parts.join('/');
-  }
+  if (parts.length >= 3) { parts[1] = '{Name}'; return parts.join('/'); }
   return path;
 }
 
-/** Look up a param, trying both the exact path and the normalised pattern. */
 function lookupParam(path: string): TopasParam | undefined {
-  const exact = PARAM_MAP.get(path.toLowerCase());
-  if (exact) return exact;
-  return PARAM_MAP.get(normalisePath(path).toLowerCase());
+  return PARAM_MAP.get(path.toLowerCase())
+      ?? PARAM_MAP.get(normalisePath(path).toLowerCase());
 }
 
-/** Get the namespace from a path like  Ge/MyBox/HLX → Ge */
+/** "GE" → "Ge", "PH" → "Ph", etc. */
+function fmtNs(ns: string): string {
+  if (!ns) return ns;
+  return ns.charAt(0).toUpperCase() + ns.slice(1).toLowerCase();
+}
+
 function getNamespace(path: string): string {
   return path.split('/')[0].toUpperCase();
 }
 
-/** Collect all component names defined in the document. */
-function collectComponentNames(document: vscode.TextDocument): string[] {
+/** Collect all component names defined in the document for namespace ns. */
+function collectComponents(document: vscode.TextDocument, ns: string): string[] {
   const names = new Set<string>();
-  const re = /^[bidus]v?c?:(?:Ge|So|Sc|Ph|Ma|Gr|Ts|Vr|Tf)\/(\w+)\//i;
+  const re = new RegExp(`^[bidus]v?c?:${ns}\\/(\\w+)\\/`, 'im');
+  for (let i = 0; i < document.lineCount; i++) {
+    const m = document.lineAt(i).text.match(re);
+    if (m) names.add(m[1]);
+  }
+  return [...names];
+}
+
+/** All components across all namespaces (for Parent/Component suggestions). */
+function collectAllComponents(document: vscode.TextDocument): string[] {
+  const names = new Set<string>();
+  const re = /^[bidus]v?c?:(?:Ge|So|Sc|Ph|Ma|Gr|Ts|Vr|Tf)\/(\w+)\//im;
   for (let i = 0; i < document.lineCount; i++) {
     const m = document.lineAt(i).text.match(re);
     if (m) names.add(m[1]);
@@ -55,21 +66,12 @@ function collectComponentNames(document: vscode.TextDocument): string[] {
 //  Hover Provider
 // ─────────────────────────────────────────────────────────────────────────────
 export class TopasHoverProvider implements vscode.HoverProvider {
-  provideHover(
-    document: vscode.TextDocument,
-    position: vscode.Position
-  ): vscode.Hover | undefined {
+  provideHover(document: vscode.TextDocument, position: vscode.Position): vscode.Hover | undefined {
     const line = document.lineAt(position).text;
     const parsed = parseLine(line);
     if (!parsed) return;
 
     const param = lookupParam(parsed.fullPath);
-
-    const md = new vscode.MarkdownString();
-    md.isTrusted = true;
-
-    // Header: path with coloured type prefix badge
-    const ns = getNamespace(parsed.fullPath);
     const typeLabel = parsed.typePrefix.toLowerCase();
     const typeDesc: Record<string, string> = {
       d:'double (with unit)', u:'unitless float', i:'integer',
@@ -77,10 +79,12 @@ export class TopasHoverProvider implements vscode.HoverProvider {
       dv:'double vector', uv:'unitless vector', iv:'integer vector',
       sv:'string vector', bv:'boolean vector',
     };
-    const humanType = typeDesc[typeLabel] ?? typeLabel;
 
-    md.appendMarkdown(`### \`${parsed.fullPath}\`\n`);
-    md.appendMarkdown(`**Type:** \`${typeLabel}:\` — ${humanType}\n\n`);
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+
+    md.appendMarkdown(`### \`${parsed.fullPath}\`\n\n`);
+    md.appendMarkdown(`**Type:** \`${typeLabel}:\` — ${typeDesc[typeLabel] ?? typeLabel}\n\n`);
 
     if (param) {
       md.appendMarkdown(`${param.description}\n\n`);
@@ -97,9 +101,11 @@ export class TopasHoverProvider implements vscode.HoverProvider {
         md.appendMarkdown(`**Allowed values:** ${vals}${more}\n\n`);
       }
     } else {
-      md.appendMarkdown(`*No documentation found for this parameter.*\n\n`);
+      md.appendMarkdown(`*No documentation available for this parameter.*\n\n`);
     }
 
+    // Namespace with correct capitalisation: Ge/, Ph/, etc.
+    const ns = fmtNs(getNamespace(parsed.fullPath));
     md.appendMarkdown(`**Namespace:** \`${ns}/\``);
     return new vscode.Hover(md);
   }
@@ -107,6 +113,11 @@ export class TopasHoverProvider implements vscode.HoverProvider {
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Completion Provider
+//  Stages:
+//   1. After '='                → suggest values
+//   2. Type prefix only         → suggest Ns/
+//   3. Ns/                      → suggest component names
+//   4. Ns/Comp/                 → suggest parameter leaf names
 // ─────────────────────────────────────────────────────────────────────────────
 export class TopasCompletionProvider implements vscode.CompletionItemProvider {
   provideCompletionItems(
@@ -114,114 +125,139 @@ export class TopasCompletionProvider implements vscode.CompletionItemProvider {
     position: vscode.Position
   ): vscode.CompletionItem[] {
     const lineText = document.lineAt(position).text.substring(0, position.character);
-    const items: vscode.CompletionItem[] = [];
 
-    // ── After '=' → suggest values ─────────────────────────────────────────
+    // ── Stage 1: value completion (after '=') ─────────────────────────────
     const eqMatch = lineText.match(/^([bidus]v?c?):([\w/]+)\s*=\s*(.*)$/i);
     if (eqMatch) {
-      const [, , path, soFar] = eqMatch;
-      const param = lookupParam(path);
-
-      // Suggest allowed values
-      if (param?.allowedValues) {
-        for (const val of param.allowedValues) {
-          const item = new vscode.CompletionItem(`"${val}"`, vscode.CompletionItemKind.EnumMember);
-          item.insertText = `"${val}"`;
-          item.detail = `${path}`;
-          items.push(item);
-        }
-        if (items.length) return items;
-      }
-
-      // Suggest booleans for b: parameters
-      if (eqMatch[1].toLowerCase().startsWith('b')) {
-        for (const v of ['"True"', '"False"']) {
-          const item = new vscode.CompletionItem(v, vscode.CompletionItemKind.Keyword);
-          items.push(item);
-        }
-        return items;
-      }
-
-      // Suggest common materials for Material params
-      if (/material/i.test(path)) {
-        for (const m of COMMON_MATERIALS) {
-          const item = new vscode.CompletionItem(`"${m}"`, vscode.CompletionItemKind.Color);
-          item.insertText = `"${m}"`;
-          item.detail = 'material';
-          items.push(item);
-        }
-        return items;
-      }
-
-      // Suggest component names for Parent/Component params
-      if (/parent|component/i.test(path)) {
-        const names = collectComponentNames(document);
-        for (const name of names) {
-          const item = new vscode.CompletionItem(`"${name}"`, vscode.CompletionItemKind.Reference);
-          item.insertText = `"${name}"`;
-          items.push(item);
-        }
-        return items;
-      }
-
-      // Suggest physics modules
-      if (/modules/i.test(path)) {
-        for (const mod of PHYSICS_MODULES) {
-          const item = new vscode.CompletionItem(`"${mod}"`, vscode.CompletionItemKind.Module);
-          item.insertText = `"${mod}"`;
-          items.push(item);
-        }
-        return items;
-      }
-
-      // Suggest units based on context
-      const unitHint = param?.units;
-      const suggestUnits = unitHint ? (UNIT_GROUPS[unitHint] ?? ALL_UNITS) : ALL_UNITS;
-      for (const u of suggestUnits) {
-        const item = new vscode.CompletionItem(u, vscode.CompletionItemKind.Unit);
-        item.detail = 'unit';
-        items.push(item);
-      }
-      return items;
+      return this.valueCompletions(eqMatch[1], eqMatch[2], document);
     }
 
-    // ── Type prefix completion at line start ────────────────────────────────
-    if (/^\s*$/.test(lineText) || /^\s*[bidus]?$/.test(lineText)) {
-      for (const pfx of ['d:', 'u:', 'i:', 'b:', 's:', 'dv:', 'uv:', 'iv:', 'sv:', 'bv:']) {
-        const item = new vscode.CompletionItem(pfx, vscode.CompletionItemKind.Keyword);
-        item.detail = 'TOPAS type prefix';
-        items.push(item);
-      }
+    // ── Stage 2: type prefix at line start ────────────────────────────────
+    if (/^\s*[bidus]?v?c?$/.test(lineText.trim())) {
+      return ['d:','u:','i:','b:','s:','dv:','uv:','iv:','sv:','bv:'].map(p => {
+        const it = new vscode.CompletionItem(p, vscode.CompletionItemKind.Keyword);
+        it.detail = 'TOPAS type prefix';
+        return it;
+      });
     }
 
-    // ── Namespace completion after type prefix ──────────────────────────────
-    const nsMatch = lineText.match(/^[bidus]v?c?:([A-Z]*)$/i);
+    // ── Stage 3: namespace completion (after "d:") ─────────────────────────
+    const nsMatch = lineText.match(/^[bidus]v?c?:([A-Z]{0,2})$/i);
     if (nsMatch) {
-      for (const ns of ['Ge', 'So', 'Sc', 'Ph', 'Ma', 'Gr', 'Ts', 'Vr', 'Tf']) {
-        const item = new vscode.CompletionItem(ns + '/', vscode.CompletionItemKind.Module);
-        item.detail = `${ns}/ namespace`;
-        items.push(item);
+      return ['Ge','So','Sc','Ph','Ma','Gr','Ts','Vr','Tf'].map(ns => {
+        const it = new vscode.CompletionItem(ns + '/', vscode.CompletionItemKind.Module);
+        it.detail = `${ns}/ namespace`;
+        it.insertText = ns + '/';
+        return it;
+      });
+    }
+
+    // ── Stage 4: component name after Ns/ ────────────────────────────────
+    const compMatch = lineText.match(/^([bidus]v?c?):([A-Za-z]+)\/(\w*)$/i);
+    if (compMatch) {
+      const ns = compMatch[2];
+      const typed = compMatch[3];
+      const fromDoc = collectComponents(document, ns);
+      const defaults = NS_DEFAULT_COMPONENTS[ns.charAt(0).toUpperCase() + ns.slice(1).toLowerCase()] ?? [];
+      const all = [...new Set([...fromDoc, ...defaults])];
+      return all
+        .filter(n => n.toLowerCase().startsWith(typed.toLowerCase()))
+        .map(name => {
+          const it = new vscode.CompletionItem(name + '/', vscode.CompletionItemKind.Variable);
+          it.detail = `${ns}/ component`;
+          it.insertText = name + '/';
+          return it;
+        });
+    }
+
+    // ── Stage 5: parameter leaf name after Ns/Comp/ ───────────────────────
+    const leafMatch = lineText.match(/^([bidus]v?c?):([A-Za-z]+\/\w+\/)(\w*)$/i);
+    if (leafMatch) {
+      const ns = leafMatch[2].split('/')[0].toUpperCase();
+      const typed = leafMatch[3];
+      const nsParams = PARAMS_BY_NAMESPACE.get(ns) ?? [];
+      return nsParams
+        .filter(p => {
+          const leaf = p.key.split('/').pop()!;
+          return leaf.toLowerCase().startsWith(typed.toLowerCase());
+        })
+        .map(p => {
+          const leaf = p.key.split('/').pop()!;
+          const it = new vscode.CompletionItem(leaf, vscode.CompletionItemKind.Property);
+          it.detail = p.type + ': ' + p.description.slice(0, 55);
+          it.documentation = new vscode.MarkdownString(p.description
+            + (p.defaultValue ? `\n\n**Default:** \`${p.defaultValue}\`` : '')
+            + (p.units ? `\n\n**Units:** ${p.units}` : ''));
+          return it;
+        });
+    }
+
+    return [];
+  }
+
+  private valueCompletions(
+    prefix: string,
+    path: string,
+    document: vscode.TextDocument
+  ): vscode.CompletionItem[] {
+    const items: vscode.CompletionItem[] = [];
+    const param = lookupParam(path);
+
+    // Explicit allowed values
+    if (param?.allowedValues?.length) {
+      for (const v of param.allowedValues) {
+        const it = new vscode.CompletionItem(`"${v}"`, vscode.CompletionItemKind.EnumMember);
+        it.insertText = `"${v}"`;
+        items.push(it);
       }
       return items;
     }
 
-    // ── Path completion after Ge/ComponentName/ ─────────────────────────────
-    const pathMatch = lineText.match(/^([bidus]v?c?):(([A-Za-z]+)\/(\w+)\/)(\w*)$/i);
-    if (pathMatch) {
-      const ns = pathMatch[3].toUpperCase();
-      const nsParams = PARAMS_BY_NAMESPACE.get(ns) ?? [];
-      for (const p of nsParams) {
-        const leafName = p.key.split('/').pop()!;
-        const item = new vscode.CompletionItem(leafName, vscode.CompletionItemKind.Property);
-        item.detail = p.description.slice(0, 60);
-        item.documentation = new vscode.MarkdownString(p.description);
-        if (p.defaultValue) item.documentation.appendMarkdown(`\n\n**Default:** \`${p.defaultValue}\``);
-        if (p.units) item.documentation.appendMarkdown(`\n\n**Units:** ${p.units}`);
-        items.push(item);
-      }
+    // Boolean
+    if (prefix.toLowerCase().startsWith('b')) {
+      return ['"True"', '"False"'].map(v => {
+        const it = new vscode.CompletionItem(v, vscode.CompletionItemKind.Keyword);
+        return it;
+      });
     }
 
-    return items;
+    // Material
+    if (/material|activematerial/i.test(path)) {
+      return COMMON_MATERIALS.map(m => {
+        const it = new vscode.CompletionItem(`"${m}"`, vscode.CompletionItemKind.Color);
+        it.insertText = `"${m}"`;
+        return it;
+      });
+    }
+
+    // Parent / Component → names in document
+    if (/parent|component/i.test(path)) {
+      const names = collectAllComponents(document);
+      if (!names.includes('World')) names.unshift('World');
+      return names.map(n => {
+        const it = new vscode.CompletionItem(`"${n}"`, vscode.CompletionItemKind.Reference);
+        it.insertText = `"${n}"`;
+        return it;
+      });
+    }
+
+    // Physics modules
+    if (/modules/i.test(path)) {
+      return PHYSICS_MODULES.map(m => {
+        const it = new vscode.CompletionItem(`"${m}"`, vscode.CompletionItemKind.Module);
+        it.insertText = `"${m}"`;
+        return it;
+      });
+    }
+
+    // Unit suggestions based on context
+    const unitHint = param?.units;
+    const units = unitHint ? (UNIT_GROUPS[unitHint] ?? ALL_UNITS) : ALL_UNITS;
+    return units.map(u => {
+      const it = new vscode.CompletionItem(u, vscode.CompletionItemKind.Unit);
+      it.detail = 'unit';
+      return it;
+    });
   }
 }
 
@@ -231,30 +267,22 @@ export class TopasCompletionProvider implements vscode.CompletionItemProvider {
 export class TopasFoldingProvider implements vscode.FoldingRangeProvider {
   provideFoldingRanges(document: vscode.TextDocument): vscode.FoldingRange[] {
     const ranges: vscode.FoldingRange[] = [];
-    const sectionStarts: number[] = [];
-
+    const stack: number[] = [];
     for (let i = 0; i < document.lineCount; i++) {
-      const text = document.lineAt(i).text;
-      // Major section: lines of ====
-      if (/^#\s*={4,}/.test(text)) {
-        if (sectionStarts.length > 0) {
-          const start = sectionStarts.pop()!;
-          if (i - 1 > start) {
+      if (/^#\s*={4,}/.test(document.lineAt(i).text)) {
+        if (stack.length > 0) {
+          const start = stack.pop()!;
+          if (i - 1 > start)
             ranges.push(new vscode.FoldingRange(start, i - 1, vscode.FoldingRangeKind.Region));
-          }
         }
-        sectionStarts.push(i);
+        stack.push(i);
       }
     }
-
-    // Close any open section at document end
-    for (const start of sectionStarts) {
+    for (const start of stack) {
       const end = document.lineCount - 1;
-      if (end > start) {
+      if (end > start)
         ranges.push(new vscode.FoldingRange(start, end, vscode.FoldingRangeKind.Region));
-      }
     }
-
     return ranges;
   }
 }
@@ -264,58 +292,49 @@ export class TopasFoldingProvider implements vscode.FoldingRangeProvider {
 // ─────────────────────────────────────────────────────────────────────────────
 export class TopasSymbolProvider implements vscode.DocumentSymbolProvider {
   provideDocumentSymbols(document: vscode.TextDocument): vscode.DocumentSymbol[] {
-    // Collect all component names grouped by namespace
-    const nsMap = new Map<string, Map<string, { firstLine: number; lastLine: number }>>();
     const NS_ICONS: Record<string, vscode.SymbolKind> = {
-      Ge: vscode.SymbolKind.Struct,
-      So: vscode.SymbolKind.Event,
-      Sc: vscode.SymbolKind.Interface,
-      Ph: vscode.SymbolKind.Module,
-      Ma: vscode.SymbolKind.Object,
-      Gr: vscode.SymbolKind.Namespace,
-      Ts: vscode.SymbolKind.Property,
-      Vr: vscode.SymbolKind.TypeParameter,
+      Ge: vscode.SymbolKind.Struct, So: vscode.SymbolKind.Event,
+      Sc: vscode.SymbolKind.Interface, Ph: vscode.SymbolKind.Module,
+      Ma: vscode.SymbolKind.Object, Gr: vscode.SymbolKind.Namespace,
+      Ts: vscode.SymbolKind.Property, Vr: vscode.SymbolKind.TypeParameter,
+      Tf: vscode.SymbolKind.Function,
     };
 
+    const nsMap = new Map<string, Map<string, { first: number; last: number }>>();
     const pathRe = /^[bidus]v?c?:([A-Za-z]+)\/(\w+)\//i;
+
     for (let i = 0; i < document.lineCount; i++) {
       const m = document.lineAt(i).text.match(pathRe);
       if (!m) continue;
-      const ns  = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
+      const ns   = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
       const comp = m[2];
       if (!nsMap.has(ns)) nsMap.set(ns, new Map());
-      const compMap = nsMap.get(ns)!;
-      if (!compMap.has(comp)) compMap.set(comp, { firstLine: i, lastLine: i });
-      else compMap.get(comp)!.lastLine = i;
+      const cm = nsMap.get(ns)!;
+      if (!cm.has(comp)) cm.set(comp, { first: i, last: i });
+      else cm.get(comp)!.last = i;
     }
 
-    const symbols: vscode.DocumentSymbol[] = [];
-    for (const [ns, comps] of nsMap) {
+    return [...nsMap.entries()].map(([ns, comps]) => {
       const nsSymbol = new vscode.DocumentSymbol(
-        `${ns}/`,
-        '',
-        NS_ICONS[ns] ?? vscode.SymbolKind.Namespace,
+        `${fmtNs(ns)}/`, '', NS_ICONS[ns] ?? vscode.SymbolKind.Namespace,
         new vscode.Range(0, 0, document.lineCount - 1, 0),
         new vscode.Range(0, 0, 0, 0),
       );
-      for (const [comp, range] of comps) {
-        const sym = new vscode.DocumentSymbol(
-          comp,
-          ns,
+      nsSymbol.children = [...comps.entries()].map(([comp, r]) =>
+        new vscode.DocumentSymbol(
+          comp, ns,
           NS_ICONS[ns] ?? vscode.SymbolKind.Variable,
-          new vscode.Range(range.firstLine, 0, range.lastLine, 1000),
-          new vscode.Range(range.firstLine, 0, range.firstLine, 100),
-        );
-        nsSymbol.children.push(sym);
-      }
-      symbols.push(nsSymbol);
-    }
-    return symbols;
+          new vscode.Range(r.first, 0, r.last, 1000),
+          new vscode.Range(r.first, 0, r.first, 100),
+        )
+      );
+      return nsSymbol;
+    });
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Diagnostic Provider  (error / warning detection)
+//  Diagnostic Provider
 // ─────────────────────────────────────────────────────────────────────────────
 export class TopasDiagnosticProvider {
   private collection: vscode.DiagnosticCollection;
@@ -328,7 +347,6 @@ export class TopasDiagnosticProvider {
   update(document: vscode.TextDocument): void {
     if (document.languageId !== 'topas') return;
     const diagnostics: vscode.Diagnostic[] = [];
-    const defined = new Set<string>();
 
     for (let i = 0; i < document.lineCount; i++) {
       const line = document.lineAt(i);
@@ -336,63 +354,61 @@ export class TopasDiagnosticProvider {
       if (!text || text.startsWith('#')) continue;
       const parsed = parseLine(text);
       if (!parsed) continue;
-
       const { typePrefix, fullPath, value } = parsed;
-      defined.add(fullPath.toLowerCase());
 
-      // ── Check: unknown parameter ─────────────────────────────────────────
       const known = lookupParam(fullPath);
+
+      // Unknown parameter (only warn for recognised namespaces)
       if (!known) {
-        // Only warn for known namespaces
         const ns = getNamespace(fullPath);
-        if (['GE','SO','SC','PH','MA','GR','TS','VR'].includes(ns)) {
+        if (['GE','SO','SC','PH','MA','GR','TS','VR','TF'].includes(ns)) {
           diagnostics.push(new vscode.Diagnostic(
             line.range,
-            `Unknown TOPAS parameter: '${fullPath}'. Check spelling or refer to TOPAS docs.`,
+            `Unknown TOPAS parameter: '${fullPath}'.`,
             vscode.DiagnosticSeverity.Warning,
           ));
         }
         continue;
       }
 
-      // ── Check: wrong type prefix ─────────────────────────────────────────
-      const expectedType = known.type.charAt(0);
-      const actualType   = typePrefix.toLowerCase().charAt(0);
-      if (actualType !== expectedType && !['c'].includes(actualType)) {
+      // Type prefix mismatch (ignore 'c' suffix variants)
+      const exp = known.type.charAt(0);
+      const act = typePrefix.toLowerCase().replace(/c$/, '').charAt(0);
+      if (act !== exp) {
         diagnostics.push(new vscode.Diagnostic(
           line.range,
-          `Type mismatch: '${fullPath}' expects type '${known.type}:' but got '${typePrefix}:'.`,
+          `Type mismatch: '${fullPath}' expects type '${known.type}:' but found '${typePrefix}:'.`,
           vscode.DiagnosticSeverity.Error,
         ));
       }
 
-      // ── Check: unit on a unitless/boolean/string/integer parameter ────────
+      // Unit on unitless/bool/string/int parameter
       const hasUnit = ALL_UNITS.some(u => value.endsWith(' ' + u));
-      if (hasUnit && ['u','i','b','s'].includes(known.type.charAt(0))) {
+      if (hasUnit && ['u','i','b','s'].includes(exp)) {
         diagnostics.push(new vscode.Diagnostic(
           line.range,
-          `Parameter '${fullPath}' (type '${known.type}:') should not have physical units.`,
+          `'${fullPath}' (type '${known.type}:') should not have a physical unit.`,
           vscode.DiagnosticSeverity.Warning,
         ));
       }
 
-      // ── Check: EMRangeMax < 600 MeV ───────────────────────────────────────
+      // EMRangeMax < 600 MeV
       if (/EMRangeMax/i.test(fullPath)) {
-        const valMatch = value.match(/([\d.]+)\s*MeV/i);
-        if (valMatch && parseFloat(valMatch[1]) < 600) {
+        const vm = value.match(/([\d.]+)\s*MeV/i);
+        if (vm && parseFloat(vm[1]) < 600) {
           diagnostics.push(new vscode.Diagnostic(
             line.range,
-            `Ph/…/EMRangeMax is ${valMatch[1]} MeV, but TOPAS 4.x requires a minimum of 600 MeV.`,
+            `Ph/…/EMRangeMax = ${vm[1]} MeV — TOPAS 4.x requires ≥ 600 MeV.`,
             vscode.DiagnosticSeverity.Error,
           ));
         }
       }
 
-      // ── Check: XBins/YBins/ZBins on Ge/ — warn if might have children ─────
+      // Bins on Ge/ (informational)
       if (/^Ge\//i.test(fullPath) && /[XYZ]Bins/i.test(fullPath)) {
         diagnostics.push(new vscode.Diagnostic(
           line.range,
-          `Geometry bins set on '${fullPath.split('/')[1]}'. TOPAS forbids child volumes inside binned components. Consider moving bins to the scorer instead.`,
+          `Geometry bins on '${fullPath.split('/')[1]}'. If this volume has children, move bins to the scorer instead.`,
           vscode.DiagnosticSeverity.Information,
         ));
       }
@@ -401,20 +417,17 @@ export class TopasDiagnosticProvider {
     this.collection.set(document.uri, diagnostics);
   }
 
-  dispose(): void {
-    this.collection.dispose();
-  }
+  dispose(): void { this.collection.dispose(); }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Auto-detection  — switches a .txt file to TOPAS language if content matches
+//  Auto-detection
 // ─────────────────────────────────────────────────────────────────────────────
 const TOPAS_PATTERNS = [
-  /^[bidus]v?c?:(Ge|So|Sc|Ph|Ts|Gr|Ma|Vr)\//im,
+  /^[bidus]v?c?:(Ge|So|Sc|Ph|Ts|Gr|Ma|Vr|Tf)\//im,
   /^includeFile\s*=/im,
   /^sv:Ph\/\w+\/Modules/im,
 ];
-
 export function isLikelyTopas(text: string): boolean {
   return TOPAS_PATTERNS.some(p => p.test(text));
 }

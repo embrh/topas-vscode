@@ -4,124 +4,207 @@
   "fileTypes": [],
   "uuid": "65752c66-cd2c-4af4-8afd-c4803161a801",
   "patterns": [
-    { "include": "#section_comment" },
-    { "include": "#line_comment" },
-    { "include": "#include_file" },
-    { "include": "#declaration" },
-    { "include": "#comment_block" }
+    {
+      "include": "#section_sep"
+    },
+    {
+      "include": "#subsection_sep"
+    },
+    {
+      "include": "#line_comment"
+    },
+    {
+      "include": "#include_file"
+    },
+    {
+      "include": "#declaration"
+    },
+    {
+      "include": "#bare_comment"
+    }
   ],
   "repository": {
-
-    "section_comment": {
-      "name": "markup.heading.topas",
-      "match": "^#\\s*[=\\-]{4,}.*$"
+    "section_sep": {
+      "comment": "Section block: === line, title line, === line",
+      "name": "markup.heading.section.topas",
+      "begin": "^#\\s*={4,}.*$",
+      "end": "^#\\s*={4,}.*$",
+      "beginCaptures": {
+        "0": {
+          "name": "markup.heading.section.topas"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "markup.heading.section.topas"
+        }
+      },
+      "contentName": "markup.heading.section.topas"
     },
-
+    "subsection_sep": {
+      "comment": "Subsection block: --- line, title line, --- line",
+      "name": "markup.heading.subsection.topas",
+      "begin": "^#\\s*-{4,}.*$",
+      "end": "^#\\s*-{4,}.*$",
+      "beginCaptures": {
+        "0": {
+          "name": "markup.heading.subsection.topas"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "markup.heading.subsection.topas"
+        }
+      },
+      "contentName": "markup.heading.subsection.topas"
+    },
     "line_comment": {
       "name": "comment.line.number-sign.topas",
       "match": "#.*$"
     },
-
-    "comment_block": {
+    "bare_comment": {
+      "comment": "Lines with no = sign — treated as comment/plain text",
       "name": "comment.block.topas",
       "match": "^(?!.*=).*$"
     },
-
     "include_file": {
       "name": "meta.include.topas",
       "match": "^\\s*(?i:(includeFile))\\s*(=)\\s*(.+)$",
       "captures": {
-        "1": { "name": "keyword.control.import.topas" },
-        "2": { "name": "keyword.operator.assignment.topas" },
-        "3": { "name": "string.unquoted.path.topas" }
+        "1": {
+          "name": "keyword.control.import.topas"
+        },
+        "2": {
+          "name": "keyword.operator.assignment.topas"
+        },
+        "3": {
+          "name": "string.unquoted.path.topas"
+        }
       }
     },
-
     "declaration": {
+      "comment": "Full parameter line: typePrefix:Ns/Comp/Param = value",
       "name": "meta.declaration.topas",
-      "match": "^\\s*([bidus]v?c?):((?:(?:Ma|El|Is|Ge|Gr|Ph|So|Sc|Tf|Ts|Vr|Rt)[/\\w]*/)(?:[\\w]+))\\s*(=)\\s*(.*)$",
+      "match": "^\\s*([bidus]v?c?):((?:[A-Za-z]+/)(?:[\\w]+/)*[\\w]+)\\s*(=)\\s*(.*?)\\s*(#.*)?$",
       "captures": {
-        "1": { "name": "storage.type.topas", "patterns": [{ "include": "#data_type_colors" }] },
-        "2": { "name": "meta.path.topas", "patterns": [{ "include": "#path_parts" }] },
-        "3": { "name": "keyword.operator.assignment.topas" },
-        "4": { "name": "meta.value.topas", "patterns": [{ "include": "#value" }] }
+        "1": {
+          "name": "meta.type-prefix.topas",
+          "patterns": [
+            {
+              "include": "#type_prefix"
+            }
+          ]
+        },
+        "2": {
+          "name": "meta.path.topas",
+          "patterns": [
+            {
+              "include": "#path_parts"
+            }
+          ]
+        },
+        "3": {
+          "name": "keyword.operator.assignment.topas"
+        },
+        "4": {
+          "name": "meta.value.topas",
+          "patterns": [
+            {
+              "include": "#value"
+            }
+          ]
+        },
+        "5": {
+          "name": "comment.line.number-sign.topas"
+        }
       }
     },
-
-    "data_type_colors": {
-      "patterns": [
-        { "match": "^d", "name": "storage.type.double.topas" },
-        { "match": "^u", "name": "storage.type.unitless.topas" },
-        { "match": "^i", "name": "storage.type.integer.topas" },
-        { "match": "^b", "name": "storage.type.boolean.topas" },
-        { "match": "^s", "name": "storage.type.string.topas" }
-      ]
-    },
-
-    "path_parts": {
+    "type_prefix": {
       "patterns": [
         {
-          "match": "(?i:(Ma|El|Is|Ge|Gr|Ph|So|Sc|Tf|Ts|Vr|Rt))(/[\\w/]*/)?([\\w]+)?",
-          "captures": {
-            "1": { "name": "entity.name.namespace.topas" },
-            "2": { "name": "entity.name.section.topas" },
-            "3": { "name": "entity.other.attribute-name.topas" }
-          }
+          "match": "^d",
+          "name": "keyword.type.double.topas"
+        },
+        {
+          "match": "^u",
+          "name": "keyword.type.unitless.topas"
+        },
+        {
+          "match": "^i",
+          "name": "keyword.type.integer.topas"
+        },
+        {
+          "match": "^b",
+          "name": "keyword.type.boolean.topas"
+        },
+        {
+          "match": "^s",
+          "name": "keyword.type.string.topas"
         }
       ]
     },
-
+    "path_parts": {
+      "match": "(?i:(Ma|El|Is|Ge|Gr|Ph|So|Sc|Tf|Ts|Vr|Rt))(/[\\w/]*/?)([\\w]+)?",
+      "captures": {
+        "1": {
+          "name": "entity.name.namespace.topas"
+        },
+        "2": {
+          "name": "entity.name.section.topas"
+        },
+        "3": {
+          "name": "entity.other.attribute-name.topas"
+        }
+      }
+    },
     "value": {
       "patterns": [
-        { "include": "#boolean_value" },
-        { "include": "#string_value" },
-        { "include": "#unit" },
-        { "include": "#numeric" },
-        { "include": "#operator" },
-        { "include": "#parameter_ref" },
-        { "include": "#line_comment" }
-      ]
-    },
-
-    "boolean_value": {
-      "name": "constant.language.boolean.topas",
-      "match": "\"(?i:true|false|t|f)\"",
-      "captures": {
-        "0": { "name": "constant.language.boolean.topas" }
-      }
-    },
-
-    "string_value": {
-      "name": "string.quoted.double.topas",
-      "begin": "\"",
-      "end": "\"",
-      "patterns": [
         {
-          "name": "constant.language.topas",
-          "match": "(?i:true|false)"
+          "include": "#boolean_value"
+        },
+        {
+          "include": "#string_value"
+        },
+        {
+          "include": "#unit"
+        },
+        {
+          "include": "#numeric"
+        },
+        {
+          "include": "#operator"
+        },
+        {
+          "include": "#parameter_ref"
         }
       ]
     },
-
-    "unit": {
-      "name": "keyword.other.unit.topas",
-      "match": "(?<=[\\d\\s])(m|cm|mm|um|nm|km|angstrom|deg|rad|mrad|eV|keV|MeV|GeV|TeV|s|ms|us|ns|ps|g\\/cm3|kg\\/m3|mg\\/cm3|gray|Gy|mGy|pGy|MBq|GBq|kBq|Bq|tesla|gauss)(?=[\\s,#$]|$)",
-      "captures": {
-        "1": { "name": "keyword.other.unit.topas" }
-      }
+    "boolean_value": {
+      "comment": "Quoted True/False/T/F",
+      "name": "constant.language.boolean.topas",
+      "match": "\"(?i:true|false|t|f)\""
     },
-
+    "string_value": {
+      "comment": "Quoted strings (non-boolean)",
+      "name": "string.quoted.double.topas",
+      "begin": "\"(?!(?i:true|false|t|f)\")",
+      "end": "\""
+    },
+    "unit": {
+      "comment": "Physical units — must follow a digit or space",
+      "name": "support.type.unit.topas",
+      "match": "(?<=[\\d\\s])(m|cm|mm|um|nm|km|angstrom|deg|rad|mrad|eV|keV|MeV|GeV|TeV|s|ms|us|ns|ps|g\\/cm3|kg\\/m3|mg\\/cm3|gray|Gy|mGy|pGy|MBq|GBq|kBq|Bq|tesla|gauss)(?=[\\s,#$]|$)"
+    },
     "numeric": {
       "name": "constant.numeric.topas",
       "match": "(?<![\\w/])[-+]?(\\d+(\\.\\d*)?|\\.\\d+)([eE][-+]?\\d+)?(?![\\w/])"
     },
-
     "operator": {
       "name": "keyword.operator.topas",
       "match": "(=|\\s[-+*]\\s)"
     },
-
     "parameter_ref": {
+      "comment": "Reference to another parameter by path",
       "name": "variable.other.reference.topas",
       "match": "(?i:(Ma|El|Is|Ge|Gr|Ph|So|Sc|Tf|Ts|Vr|Rt))[/\\w]+"
     }
