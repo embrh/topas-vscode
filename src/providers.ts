@@ -30,20 +30,21 @@ function lookupParam(path: string): TopasParam | undefined {
       ?? PARAM_MAP.get(normalisePath(path).toLowerCase());
 }
 
-/** "GE" → "Ge", "PH" → "Ph", etc. */
 function fmtNs(ns: string): string {
   if (!ns) return ns;
   return ns.charAt(0).toUpperCase() + ns.slice(1).toLowerCase();
 }
 
 function getNamespace(path: string): string {
-  return path.split('/')[0].toUpperCase();
+  return fmtNs(path.split('/')[0]);
 }
+
+const ALL_NAMESPACES = ['Ge', 'So', 'Sc', 'Ph', 'Ma', 'Gr', 'Ts', 'Vr', 'Tf'];
 
 /** Collect all component names defined in the document for namespace ns. */
 function collectComponents(document: vscode.TextDocument, ns: string): string[] {
   const names = new Set<string>();
-  const re = new RegExp(`^[bidus]v?c?:${ns}\\/(\\w+)\\/`, 'im');
+  const re = new RegExp(`^\\s*[bidus]v?c?:${ns}\\/(\\w+)\\/`, 'i');
   for (let i = 0; i < document.lineCount; i++) {
     const m = document.lineAt(i).text.match(re);
     if (m) names.add(m[1]);
@@ -54,12 +55,75 @@ function collectComponents(document: vscode.TextDocument, ns: string): string[] 
 /** All components across all namespaces (for Parent/Component suggestions). */
 function collectAllComponents(document: vscode.TextDocument): string[] {
   const names = new Set<string>();
-  const re = /^[bidus]v?c?:(?:Ge|So|Sc|Ph|Ma|Gr|Ts|Vr|Tf)\/(\w+)\//im;
+  const re = /^\s*[bidus]v?c?:(?:Ge|So|Sc|Ph|Ma|Gr|Ts|Vr|Tf)\/(\w+)\//im;
   for (let i = 0; i < document.lineCount; i++) {
     const m = document.lineAt(i).text.match(re);
     if (m) names.add(m[1]);
   }
   return [...names];
+}
+
+function collectSegmentValues(
+  document: vscode.TextDocument,
+  ns: string,
+  prefixParts: string[],
+  segmentIndex: number
+): string[] {
+  const names = new Set<string>();
+  const re = /^\s*[bidus]v?c?:([\w/]+)/i;
+
+  for (let i = 0; i < document.lineCount; i++) {
+    const m = document.lineAt(i).text.match(re);
+    if (!m) continue;
+
+    const parts = m[1].split('/');
+    if (fmtNs(parts[0]) !== ns) continue;
+    if (parts.length <= segmentIndex) continue;
+
+    const prefixMatches = prefixParts.every((part, index) => {
+      if (index === 0) return fmtNs(part) === fmtNs(parts[index]);
+      return part === parts[index];
+    });
+    if (prefixMatches) names.add(parts[segmentIndex]);
+  }
+
+  return [...names];
+}
+
+function prefixMatchesPattern(prefixParts: string[], patternParts: string[]): boolean {
+  if (prefixParts.length > patternParts.length) return false;
+
+  return prefixParts.every((part, index) => {
+    const patternPart = patternParts[index];
+    if (!patternPart) return false;
+    if (index === 0) return fmtNs(part) === fmtNs(patternPart);
+    if (/^\{.+\}$/.test(patternPart)) return part.length > 0;
+    return part.toLowerCase() === patternPart.toLowerCase();
+  });
+}
+
+function typeMatches(prefix: string, param: TopasParam): boolean {
+  return prefix.toLowerCase().replace(/c$/, '') === param.type.toLowerCase();
+}
+
+function makeItem(
+  label: string,
+  kind: vscode.CompletionItemKind,
+  insertText: string,
+  detail?: string,
+  documentation?: string | vscode.MarkdownString,
+  triggerNext = false,
+  range?: vscode.Range
+): vscode.CompletionItem {
+  const item = new vscode.CompletionItem(label, kind);
+  item.insertText = insertText;
+  if (range) item.range = range;
+  if (detail) item.detail = detail;
+  if (documentation) item.documentation = documentation;
+  if (triggerNext) {
+    item.command = { command: 'editor.action.triggerSuggest', title: 'Trigger next suggestions' };
+  }
+  return item;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,9 +186,13 @@ export class TopasHoverProvider implements vscode.HoverProvider {
 export class TopasCompletionProvider implements vscode.CompletionItemProvider {
   provideCompletionItems(
     document: vscode.TextDocument,
-    position: vscode.Position
+    position: vscode.Position,
+    _token: vscode.CancellationToken,
+    _context: vscode.CompletionContext
   ): vscode.CompletionItem[] {
     const lineText = document.lineAt(position).text.substring(0, position.character);
+
+    if (/^\s*#/.test(lineText)) return [];
 
     // ── Stage 1: value completion (after '=') ─────────────────────────────
     const eqMatch = lineText.match(/^([bidus]v?c?):([\w/]+)\s*=\s*(.*)$/i);
@@ -134,65 +202,154 @@ export class TopasCompletionProvider implements vscode.CompletionItemProvider {
 
     // ── Stage 2: type prefix at line start ────────────────────────────────
     if (/^\s*[bidus]?v?c?$/.test(lineText.trim())) {
-      return ['d:','u:','i:','b:','s:','dv:','uv:','iv:','sv:','bv:'].map(p => {
-        const it = new vscode.CompletionItem(p, vscode.CompletionItemKind.Keyword);
-        it.detail = 'TOPAS type prefix';
-        return it;
-      });
+      return this.typePrefixCompletions();
     }
 
     // ── Stage 3: namespace completion (after "d:") ─────────────────────────
-    const nsMatch = lineText.match(/^[bidus]v?c?:([A-Z]{0,2})$/i);
+    const nsMatch = lineText.match(/^\s*[bidus]v?c?:([^=\s/]*)$/i);
     if (nsMatch) {
-      return ['Ge','So','Sc','Ph','Ma','Gr','Ts','Vr','Tf'].map(ns => {
-        const it = new vscode.CompletionItem(ns + '/', vscode.CompletionItemKind.Module);
-        it.detail = `${ns}/ namespace`;
-        it.insertText = ns + '/';
-        return it;
-      });
+      const start = lineText.lastIndexOf(':') + 1;
+      const range = new vscode.Range(position.line, start, position.line, position.character);
+      return this.namespaceCompletions(nsMatch[1], range);
     }
 
-    // ── Stage 4: component name after Ns/ ────────────────────────────────
-    const compMatch = lineText.match(/^([bidus]v?c?):([A-Za-z]+)\/(\w*)$/i);
-    if (compMatch) {
-      const ns = compMatch[2];
-      const typed = compMatch[3];
-      const fromDoc = collectComponents(document, ns);
-      const defaults = NS_DEFAULT_COMPONENTS[ns.charAt(0).toUpperCase() + ns.slice(1).toLowerCase()] ?? [];
-      const all = [...new Set([...fromDoc, ...defaults])];
-      return all
-        .filter(n => n.toLowerCase().startsWith(typed.toLowerCase()))
-        .map(name => {
-          const it = new vscode.CompletionItem(name + '/', vscode.CompletionItemKind.Variable);
-          it.detail = `${ns}/ component`;
-          it.insertText = name + '/';
-          return it;
-        });
-    }
-
-    // ── Stage 5: parameter leaf name after Ns/Comp/ ───────────────────────
-    const leafMatch = lineText.match(/^([bidus]v?c?):([A-Za-z]+\/\w+\/)(\w*)$/i);
-    if (leafMatch) {
-      const ns = leafMatch[2].split('/')[0].toUpperCase();
-      const typed = leafMatch[3];
-      const nsParams = PARAMS_BY_NAMESPACE.get(ns) ?? [];
-      return nsParams
-        .filter(p => {
-          const leaf = p.key.split('/').pop()!;
-          return leaf.toLowerCase().startsWith(typed.toLowerCase());
-        })
-        .map(p => {
-          const leaf = p.key.split('/').pop()!;
-          const it = new vscode.CompletionItem(leaf, vscode.CompletionItemKind.Property);
-          it.detail = p.type + ': ' + p.description.slice(0, 55);
-          it.documentation = new vscode.MarkdownString(p.description
-            + (p.defaultValue ? `\n\n**Default:** \`${p.defaultValue}\`` : '')
-            + (p.units ? `\n\n**Units:** ${p.units}` : ''));
-          return it;
-        });
+    // ── Stage 4+: component/path segment after each slash ─────────────────
+    const pathMatch = lineText.match(/^\s*([bidus]v?c?):([^=\s]+)$/i);
+    if (pathMatch && pathMatch[2].includes('/')) {
+      const afterColon = pathMatch[2];
+      const pathStart = position.character - afterColon.length;
+      const segmentStart = pathStart + afterColon.lastIndexOf('/') + 1;
+      const range = new vscode.Range(position.line, segmentStart, position.line, position.character);
+      return this.pathSegmentCompletions(document, pathMatch[1], afterColon, range);
     }
 
     return [];
+  }
+
+  private typePrefixCompletions(): vscode.CompletionItem[] {
+    const typeDesc: Record<string, string> = {
+      'd:': 'double (with unit)',
+      'u:': 'unitless float',
+      'i:': 'integer',
+      'b:': 'boolean',
+      's:': 'string',
+      'dv:': 'double vector',
+      'uv:': 'unitless vector',
+      'iv:': 'integer vector',
+      'sv:': 'string vector',
+      'bv:': 'boolean vector',
+    };
+    return Object.entries(typeDesc).map(([prefix, desc]) =>
+      makeItem(prefix, vscode.CompletionItemKind.Keyword, prefix, desc, undefined, true)
+    );
+  }
+
+  private namespaceCompletions(partial: string, range: vscode.Range): vscode.CompletionItem[] {
+    return ALL_NAMESPACES
+      .filter(ns => ns.toLowerCase().startsWith(partial.toLowerCase()))
+      .map(ns =>
+        makeItem(ns + '/', vscode.CompletionItemKind.Module, ns + '/', `${ns}/ namespace`, undefined, true, range)
+      );
+  }
+
+  private pathSegmentCompletions(
+    document: vscode.TextDocument,
+    typePrefix: string,
+    afterColon: string,
+    range: vscode.Range
+  ): vscode.CompletionItem[] {
+    const rawParts = afterColon.split('/');
+    const partial = rawParts.pop() ?? '';
+    const prefixParts = rawParts;
+    const ns = fmtNs(prefixParts[0] ?? '');
+    const nsParams = PARAMS_BY_NAMESPACE.get(ns) ?? [];
+    const suggestions = new Map<string, vscode.CompletionItem>();
+
+    for (const param of nsParams) {
+      const patternParts = param.key.split('/');
+      if (!prefixMatchesPattern(prefixParts, patternParts)) continue;
+
+      const nextPart = patternParts[prefixParts.length];
+      if (!nextPart) continue;
+
+      const hasMoreSegments = patternParts.length > prefixParts.length + 1;
+
+      if (nextPart === '{Name}') {
+        for (const name of this.namesForPlaceholder(document, ns, partial)) {
+          const label = name + '/';
+          if (suggestions.has(label)) continue;
+          suggestions.set(
+            label,
+            makeItem(label, vscode.CompletionItemKind.Variable, label, `${ns}/ component`, undefined, true, range)
+          );
+        }
+        continue;
+      }
+
+      if (/^\{.+\}$/.test(nextPart)) {
+        for (const name of this.valuesForPlaceholder(document, ns, prefixParts, partial)) {
+          const label = name + '/';
+          if (suggestions.has(label)) continue;
+          suggestions.set(
+            label,
+            makeItem(label, vscode.CompletionItemKind.Variable, label, `${nextPart} value`, undefined, true, range)
+          );
+        }
+        continue;
+      }
+
+      if (!nextPart.toLowerCase().startsWith(partial.toLowerCase())) continue;
+      if (!hasMoreSegments && !typeMatches(typePrefix, param)) continue;
+
+      const label = hasMoreSegments ? nextPart + '/' : nextPart;
+      if (suggestions.has(label)) continue;
+
+      const item = makeItem(
+        label,
+        hasMoreSegments ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.Property,
+        label,
+        hasMoreSegments ? `${ns}/ path segment` : `${param.type}: ${param.description.slice(0, 60)}`,
+        hasMoreSegments ? undefined : this.paramDocumentation(param),
+        hasMoreSegments,
+        range
+      );
+      item.sortText = hasMoreSegments ? '1' + label : '2' + label;
+      suggestions.set(label, item);
+    }
+
+    return [...suggestions.values()];
+  }
+
+  private namesForPlaceholder(
+    document: vscode.TextDocument,
+    ns: string,
+    partial: string
+  ): string[] {
+    const fromDoc = collectComponents(document, ns);
+    const defaults = NS_DEFAULT_COMPONENTS[ns] ?? [];
+    return [...new Set([...defaults, ...fromDoc])]
+      .filter(name => name.toLowerCase().startsWith(partial.toLowerCase()));
+  }
+
+  private valuesForPlaceholder(
+    document: vscode.TextDocument,
+    ns: string,
+    prefixParts: string[],
+    partial: string
+  ): string[] {
+    return collectSegmentValues(document, ns, prefixParts, prefixParts.length)
+      .filter(name => name.toLowerCase().startsWith(partial.toLowerCase()));
+  }
+
+  private paramDocumentation(param: TopasParam): vscode.MarkdownString {
+    return new vscode.MarkdownString(
+      param.description
+      + (param.defaultValue ? `\n\n**Default:** \`${param.defaultValue}\`` : '')
+      + (param.units ? `\n\n**Units:** ${param.units}` : '')
+      + (param.allowedValues?.length
+          ? `\n\n**Allowed:** ${param.allowedValues.slice(0, 10).map(v => `\`${v}\``).join(', ')}`
+          : '')
+    );
   }
 
   private valueCompletions(
