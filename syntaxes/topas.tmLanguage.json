@@ -122,38 +122,32 @@
     "type_prefix": {
       "patterns": [
         {
-          "match": "^d",
+          "match": "^dv?c?",
           "name": "keyword.type.double.topas"
         },
         {
-          "match": "^u",
+          "match": "^uv?c?",
           "name": "keyword.type.unitless.topas"
         },
         {
-          "match": "^i",
+          "match": "^iv?c?",
           "name": "keyword.type.integer.topas"
         },
         {
-          "match": "^b",
+          "match": "^bv?c?",
           "name": "keyword.type.boolean.topas"
         },
         {
-          "match": "^s",
+          "match": "^sv?c?",
           "name": "keyword.type.string.topas"
         }
       ]
     },
     "path_parts": {
-      "match": "(?i:(Ma|El|Is|Ge|Gr|Ph|So|Sc|Tf|Ts|Vr|Rt))(/[\\w/]*/?)([\\w]+)?",
+      "match": "(?i:(Ma|El|Is|Ge|Gr|Ph|So|Sc|Tf|Ts|Vr|Rt))(?=/)",
       "captures": {
         "1": {
-          "name": "entity.name.namespace.topas"
-        },
-        "2": {
-          "name": "entity.name.section.topas"
-        },
-        "3": {
-          "name": "entity.other.attribute-name.topas"
+          "name": "support.class.namespace.topas"
         }
       }
     },
@@ -181,7 +175,7 @@
     },
     "boolean_value": {
       "comment": "Quoted True/False/T/F",
-      "name": "constant.language.boolean.topas",
+      "name": "string.quoted.double.topas",
       "match": "\"(?i:true|false|t|f)\""
     },
     "string_value": {
