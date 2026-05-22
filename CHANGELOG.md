@@ -14,3 +14,4 @@ All notable changes to the Topas extension will be documented in this file.
 - Code folding based on TOPAS block structure
 - Outline view for TOPAS files
 - Integration with VS Code's task system to run TOPAS simulations directly from the editor
+- ISC license file and VSIX packaging exclusions

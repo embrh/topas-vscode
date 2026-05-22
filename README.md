@@ -49,3 +49,16 @@ npm install
 npm run compile
 # Press F5 in VSCode to open the Extension Development Host
 ```
+
+## Packaging
+
+Development-only files are excluded from the VSIX package through `.vscodeignore`.
+
+```bash
+npm run compile
+vsce package
+```
+
+## License
+
+This extension is released under the ISC License. See `LICENSE` for details.

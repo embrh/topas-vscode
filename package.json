@@ -164,7 +164,14 @@
     "@types/vscode": "^1.120.0",
     "typescript": "^5.9.3"
   },
-  "keywords": [],
+  "keywords": [
+    "topas",
+    "monte-carlo",
+    "radiation",
+    "language",
+    "formatter",
+    "snippets"
+  ],
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/embrh/topas-vscode/issues"
