@@ -1,8 +1,8 @@
 {
   "name": "topas",
   "displayName": "TOPAS",
-  "publisher": "SamuelPeet",
-  "author": "Samuel Peet",
+  "publisher": "EmileBH",
+  "author": "Émile Brousseau-Hardy",
   "description": "Full language support for TOPAS Monte Carlo parameter files: syntax highlighting, formatting, IntelliSense, hover docs, folding, outline, and run integration.",
   "version": "2.0.0",
   "engines": {
@@ -11,12 +11,13 @@
   "icon": "icon.png",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/samuelpeet/topas-vscode.git"
+    "url": "git+https://github.com/embrh/topas-vscode.git"
   },
   "categories": [
     "Programming Languages",
     "Formatters",
-    "Linters"
+    "Linters",
+    "Snippets"
   ],
   "activationEvents": [
     "onLanguage:topas"
@@ -166,7 +167,7 @@
   "keywords": [],
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/samuelpeet/topas-vscode/issues"
+    "url": "https://github.com/embrh/topas-vscode/issues"
   },
-  "homepage": "https://github.com/samuelpeet/topas-vscode#readme"
+  "homepage": "https://github.com/embrh/topas-vscode#readme"
 }
